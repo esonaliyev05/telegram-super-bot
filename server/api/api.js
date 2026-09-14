@@ -1,0 +1,7 @@
+const express=require('express'); const multer=require('multer'); const path=require('path'); const db=require('../database/database'); const bot=require('../bot/bot');
+const router=express.Router(); const upload=multer({dest:path.join(__dirname,'../../uploads')});
+router.get('/users',(req,res)=>res.json(db.users())); router.get('/users/:id/messages',(req,res)=>res.json(db.messages(Number(req.params.id)))); router.get('/stats',(req,res)=>res.json(db.stats()));
+router.post('/users/:id/block',(req,res)=>res.json({ok:!!db.setBlocked(Number(req.params.id),true)})); router.post('/users/:id/unblock',(req,res)=>res.json({ok:!!db.setBlocked(Number(req.params.id),false)}));
+router.post('/send',upload.single('file'),async(req,res)=>{try{const id=Number(req.body.userId);const text=req.body.text||'';if(req.file){const ext=req.file.mimetype;let kind=ext.startsWith('image/')?'photo':ext.startsWith('video/')?'video':ext.startsWith('audio/')?'audio':'document';await bot.sendMedia(id,kind,req.file.path,text)}else await bot.sendToUser(id,text);db.addMessage({user_id:id,from_type:'admin',kind:req.file?'file':'text',text});res.json({ok:true})}catch(e){res.status(500).json({ok:false,error:e.message})}});
+router.post('/broadcast',upload.single('file'),async(req,res)=>{let sent=0;for(const u of db.users().filter(x=>!x.blocked)){try{if(req.file)await bot.sendMedia(u.id,'document',req.file.path,req.body.text||'');else await bot.sendToUser(u.id,req.body.text||'');sent++}catch{}}res.json({ok:true,sent})});
+module.exports=router;
